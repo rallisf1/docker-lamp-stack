@@ -1,0 +1,55 @@
+version: '3'
+services:
+  mariadb:
+    image: mariadb:latest
+    container_name: mydbcontainer
+    environment:
+      MARIADB_ROOT_PASSWORD: _SET_TO_A_STRONG_PASSWORD_
+    volumes:
+        - ./mariadb.cnf:/etc/mysql/conf.d/mariadb.cnf
+        - ./db:/var/lib/mysql
+        - ./logs/mariadb-slow.log:/assets/data/mysql/log/mariadb-slow.log
+    restart: unless-stopped
+    stop_grace_period: 5s
+  php:
+    build: ./php
+    container_name: myphpcontainer
+    volumes:
+      - ./public_html:/var/www/html
+      - ./php/www.conf:/usr/local/etc/php-fpm.d/www.conf
+      - ./php/php.ini:/usr/local/etc/php/conf.d/zz-overrides.ini
+      - ./logs/php-errors.log:/var/log/php-errors.log
+    restart: unless-stopped
+  redis:
+    image: redis:alpine
+    container_name: myrediscontainer
+    restart: unless-stopped
+  web:
+    image: "httpd:latest"
+    depends_on:
+      - mariadb
+      - php
+      - redis
+    volumes:
+      - ./public_html:/var/www/html
+      - ./httpd.conf:/usr/local/apache2/conf/httpd.conf
+    ports:
+    # uncomment to enable non ssl public incoming connections
+    #  - 8080:80
+    restart: unless-stopped
+  proxy:
+    image: 'jc21/nginx-proxy-manager:latest'
+    container_name: myproxycontainer
+    restart: unless-stopped
+    ports:
+      - 80:80
+      - 443:443
+      # comment the following to block access to admin interface, usually you only need it for the fist setup
+      - 81:81
+    volumes:
+      - ./proxy-data:/data
+      - ./letsencrypt:/etc/letsencrypt
+      
+networks:
+  default:
+    name: mylampnetwork
